@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>UNO Web Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: linear-gradient(135deg, #0f5132, #198754);
+      color: #fff;
+      text-align: center;
+    }
+    h1 { margin: 16px 0; }
+    #game {
+      max-width: 1100px;
+      margin: auto;
+      padding: 10px;
+    }
+    .row {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin: 10px 0;
+    }
+    .card {
+      width: 70px;
+      height: 100px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      cursor: pointer;
+      border: 2px solid rgba(255,255,255,0.7);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+      user-select: none;
+    }
+    .card.disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .red { background: #dc3545; }
+    .yellow { background: #ffc107; color: #000; }
+    .green { background: #198754; }
+    .blue { background: #0d6efd; }
+    .black { background: #212529; }
+
+    #pile, #deck {
+      min-width: 80px;
+      min-height: 110px;
+    }
+    button {
+      padding: 8px 14px;
+      border-radius: 6px;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    #log {
+      background: rgba(0,0,0,0.3);
+      padding: 8px;
+      border-radius: 8px;
+      min-height: 40px;
+    }
+  </style>
+</head>
+<body>
+  <h1>UNO Web Game</h1>
+  <div id="game">
+    <div class="row" id="opponent">Opponent cards: <span id="oppCount">7</span></div>
+
+    <div class="row">
+      <div id="deck" class="card black">DECK</div>
+      <div id="pile"></div>
+    </div>
+
+    <h3>Your Hand</h3>
+    <div class="row" id="playerHand"></div>
+
+    <div class="row">
+      <button onclick="drawCard()">Draw Card</button>
+    </div>
+
+    <div id="log">Game started</div>
+  </div>
+
+  <script>
+    const colors = ['red','yellow','green','blue'];
+    const values = ['0','1','2','3','4','5','6','7','8','9','skip','reverse','draw2'];
+
+    let deck = [];
+    let player = [];
+    let opponent = [];
+    let pile = null;
+    let currentColor = null;
+    let turn = 'player';
+
+    function createDeck() {
+      deck = [];
+      for (let c of colors) {
+        for (let v of values) {
+          deck.push({color:c, value:v});
+          if (v !== '0') deck.push({color:c, value:v});
+        }
+      }
+      for (let i=0;i<4;i++) {
+        deck.push({color:'black', value:'wild'});
+        deck.push({color:'black', value:'wild4'});
+      }
+      deck.sort(()=>Math.random()-0.5);
+    }
+
+    function startGame() {
+      createDeck();
+      player = deck.splice(0,7);
+      opponent = deck.splice(0,7);
+      pile = deck.pop();
+      currentColor = pile.color === 'black' ? colors[Math.floor(Math.random()*4)] : pile.color;
+      render();
+    }
+
+    function canPlay(card) {
+      return card.color === 'black' || card.color === currentColor || card.value === pile.value;
+    }
+
+    function playCard(index) {
+      if (turn !== 'player') return;
+      const card = player[index];
+      if (!canPlay(card)) return;
+
+      player.splice(index,1);
+      pile = card;
+
+      if (card.color === 'black') {
+        currentColor = prompt('Choose color: red, yellow, green, blue','red');
+      } else {
+        currentColor = card.color;
+      }
+
+      applyEffect(card, 'opponent');
+      turn = 'opponent';
+      render();
+      setTimeout(opponentTurn, 800);
+    }
+
+    function applyEffect(card, target) {
+      if (card.value === 'draw2') draw(target,2);
+      if (card.value === 'wild4') draw(target,4);
+    }
+
+    function draw(target, count) {
+      for (let i=0;i<count;i++) {
+        if (deck.length===0) createDeck();
+        if (target==='player') player.push(deck.pop());
+        else opponent.push(deck.pop());
+      }
+    }
+
+    function drawCard() {
+      if (turn !== 'player') return;
+      draw('player',1);
+      turn = 'opponent';
+      render();
+      setTimeout(opponentTurn, 800);
+    }
+
+    function opponentTurn() {
+      let playable = opponent.findIndex(c=>canPlay(c));
+      if (playable >= 0) {
+        const card = opponent.splice(playable,1)[0];
+        pile = card;
+        currentColor = card.color === 'black' ? colors[Math.floor(Math.random()*4)] : card.color;
+        applyEffect(card, 'player');
+        log('Opponent played '+card.value);
+      } else {
+        draw('opponent',1);
+        log('Opponent drew a card');
+      }
+      turn = 'player';
+      render();
+    }
+
+    function render() {
+      const hand = document.getElementById('playerHand');
+      hand.innerHTML='';
+      player.forEach((c,i)=>{
+        const d=document.createElement('div');
+        d.className=`card ${c.color} ${canPlay(c)?'':'disabled'}`;
+        d.textContent=c.value.toUpperCase();
+        d.onclick=()=>playCard(i);
+        hand.appendChild(d);
+      });
+
+      const pileDiv=document.getElementById('pile');
+      pileDiv.innerHTML='';
+      const p=document.createElement('div');
+      p.className=`card ${pile.color}`;
+      p.textContent=pile.value.toUpperCase();
+      pileDiv.appendChild(p);
+
+      document.getElementById('oppCount').textContent=opponent.length;
+
+      if (player.length===0) alert('YOU WIN!');
+      if (opponent.length===0) alert('OPPONENT WINS');
+    }
+
+    function log(msg){ document.getElementById('log').textContent=msg; }
+
+    startGame();
+  </script>
+</body>
+</html>
